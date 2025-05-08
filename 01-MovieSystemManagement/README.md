@@ -1,93 +1,117 @@
-# Movie System Management
+Project Requirements: Movie Management System
 
-A comprehensive backend API for managing a movie catalog system.
+## Basic Features: Movies
 
-## Features
+- **Get All Movies**: Support keyword search, rating-based sorting, and pagination.
+- **Get a Single Movie**: Retrieve detailed information about a specific movie by its ID.
+- **Add a Movie**: Add a new movie entry.
+- **Update a Movie**: Modify information for an existing movie.
+- **Delete a Movie**: Remove a specified movie.
 
-- Movie CRUD operations
-- Genre/category management
-- User rating and review system
-- Search and filtering capabilities
-- Authentication and authorization
+## Extension Features: Reviews
 
-## Technology Stack
+- **Add a Review**: Add a review to a movie and record the rating.
+- **Get Reviews**: Retrieve all reviews for a specific movie.
 
-- Node.js
-- Express.js
-- MongoDB
-- JWT for authentication
-- Jest for testing
+### Data Format
 
-## API Endpoints
-
-### Movies
-- `GET /api/movies` - Get all movies
-- `GET /api/movies/:id` - Get movie by ID
-- `POST /api/movies` - Create new movie
-- `PUT /api/movies/:id` - Update movie
-- `DELETE /api/movies/:id` - Delete movie
-
-### Categories
-- `GET /api/categories` - Get all categories
-- `GET /api/categories/:id` - Get category by ID
-- `POST /api/categories` - Create new category
-- `PUT /api/categories/:id` - Update category
-- `DELETE /api/categories/:id` - Delete category
-
-### Users
-- `POST /api/auth/register` - Register new user
-- `POST /api/auth/login` - Login
-
-### Reviews
-- `GET /api/movies/:id/reviews` - Get all reviews for a movie
-- `POST /api/movies/:id/reviews` - Add review to a movie
-
-## Getting Started
-
-1. Clone the repository
-2. Navigate to the project directory:
-```bash
-cd 01-MovieSystemManagement
-```
-3. Install dependencies:
-```bash
-npm install
-```
-4. Set up environment variables:
-   - Create a `.env` file with the following:
-```
-PORT=3000
-MONGODB_URI=mongodb://localhost:27017/movie_system
-JWT_SECRET=your_jwt_secret
-```
-5. Start the server:
-```bash
-npm start
+```javascript
+const movies = [
+  {
+    id: 1,
+    title: "Inception",
+    description: "A skilled thief steals secrets from dreams.",
+    types: ["Sci-Fi"],
+    averageRating: 4.5,
+    reviews: [
+      { id: 1, content: "Amazing movie!", rating: 5 },
+      { id: 2, content: "Great visuals.", rating: 4 },
+    ],
+  },
+];
 ```
 
-## Development
+## API Endpoints (RESTful API)
 
-```bash
-npm run dev
+### Get All Movies
+
+`GET /v1/movies - 200`
+
+Retrieve all movies with support for keyword search, rating-based sorting, and pagination.
+
+### Pagination and Filtering
+
+| Parameter | Description |
+| --- | --- |
+| page | Page number |
+| limit | Number of items per page (page size) |
+| keyword (q) | Search term |
+
+### Get a Single Movie
+
+`GET /v1/movies/:id - 200`
+
+Retrieve detailed information about a specific movie by its ID.
+
+### Add a New Movie
+
+`POST /v1/movies - 201`
+
+Add a new movie entry. Newly added movies should appear first in results.
+
+**Request Body:**
+
+```json
+{
+  "title": "Movie Title",
+  "description": "Movie Description",
+  "types": ["Genre1", "Genre2"]
+}
 ```
 
-## Testing
+### Update a Movie
 
-```bash
-npm test
+`PUT/PATCH /v1/movies/:id - 200`
+
+Modify information for an existing movie.
+
+**Request Body:**
+
+```json
+{
+  "title": "Updated Title",
+  "description": "Updated Description",
+  "types": ["Updated Genre"]
+}
 ```
 
-## Project Structure
+### Delete a Movie
 
+`DELETE /v1/movies/:id - 204`
+
+Delete a specified movie.
+
+## Reviews Extension
+
+### Add a Review
+
+`POST /v1/movies/:id/reviews - 201`
+
+Add a review to a movie and record the rating.
+
+**Request Body:**
+
+```json
+{
+  "content": "Review text",
+  "rating": 4.5
+}
 ```
-src/
-  ├── config/       # Configuration files
-  ├── controllers/  # Request handlers
-  ├── middleware/   # Express middleware
-  ├── models/       # Database models
-  ├── routes/       # Route definitions
-  ├── services/     # Business logic
-  ├── utils/        # Utility functions
-  └── app.js        # Application entry point
-tests/              # Test files
-```
+
+### Get Reviews
+
+`GET /v1/movies/:id/reviews - 200`
+
+Retrieve all reviews for a specific movie.
+
+<!-- Notes: This API design follows RESTful principles -->
