@@ -41,11 +41,11 @@ Retrieve all movies with support for keyword search, rating-based sorting, and p
 
 ### Pagination and Filtering
 
-| Parameter | Description |
-| --- | --- |
-| page | Page number |
-| limit | Number of items per page (page size) |
-| keyword (q) | Search term |
+| Parameter   | Description                          |
+| ----------- | ------------------------------------ |
+| page        | Page number                          |
+| limit       | Number of items per page (page size) |
+| keyword (q) | Search term                          |
 
 ### Get a Single Movie
 
