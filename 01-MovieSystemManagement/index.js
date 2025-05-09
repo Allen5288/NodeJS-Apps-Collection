@@ -1,148 +1,158 @@
-const express = require("express");
+const express = require('express');
 
 const app = express();
 app.use(express.json());
+app.use(cors);
 
-const movies = [
-  {
-    id: 1,
-    title: "Inception",
-    description: "A skilled thief steals secrets from dreams.",
-    types: ["Sci-Fi"],
-    averageRating: 4.5,
-    reviews: [
-      { id: 1, content: "Amazing movie!", rating: 5 },
-      { id: 2, content: "Great visuals.", rating: 4 },
-    ],
-  },
-];
+const movies = [];
 
-let nextMovieId = movies.length + 1;
+let nextMovieId = 1;
+let nextReviewId = 1;
 
-app.get("/v1/movies", (req, res) => {
+// router
+
+const movieRouter = express.Router();
+app.use('/v1/movies', movieRouter);
+
+movieRouter.get('/', (req, res) => {
   const { keyword, limit = 10, page = 1, sort } = req.query;
-
+  // 浅拷贝，深拷贝
   let moviesCopy = [...movies];
 
   if (keyword) {
-    const keywordLower = keyword.toLowerCase();
-    moviesCopy = moviesCopy.filter((movie) =>
-      movie.title.toLowerCase().includes(keywordLower)
+    moviesCopy = moviesCopy.filter(
+      (movie) =>
+        movie.title.toLowerCase().includes(keyword.toLowerCase()) ||
+        movie.description.toLowerCase().includes(keyword.toLowerCase())
     );
   }
 
-  if (sort === "rating") {
-    moviesCopy.sort((a, b) => b.averageRating - a.averageRating);
-  } else if (sort === "-rating") {
+  if (sort === 'rating') {
     moviesCopy.sort((a, b) => a.averageRating - b.averageRating);
+  } else if (sort === '-rating') {
+    moviesCopy.sort((a, b) => b.averageRating - a.averageRating);
   }
 
-  const currentPage = parseInt(page, 10) || 1;
-  const currentLimit = parseInt(limit, 10) || 10;
+  // const currentPage = parseInt(page) || 1
+  const startIndex = (parseInt(page) - 1) * parseInt(limit);
+  const endIndex = startIndex + parseInt(limit);
+  const returnedMovies = moviesCopy.slice(startIndex, endIndex);
 
-  const startIndex = (currentPage - 1) * currentLimit;
-  const endIndex = startIndex + currentLimit;
-  const paginatedMovies = moviesCopy.slice(startIndex, endIndex);
-
-  res.json(paginatedMovies);
+  res.json(returnedMovies);
 });
 
-app.get("/v1/movies/:id", (req, res) => {
-  const movieId = parseInt(req.params.id, 10);
-  const movie = movies.find((m) => m.id === movieId);
-  if (movie) {
-    res.json(movie);
-  } else {
-    res.status(404).json({ message: "Movie not found" });
+movieRouter.get('/:id', (req, res) => {
+  const { id } = req.params;
+  const movie = movies.find((movie) => movie.id === +id);
+  if (!movie) {
+    res.status(404).json({ message: 'Movie not found' });
+    return;
   }
+  res.json(movie);
 });
 
-app.post("/v1/movies", (req, res) => {
-  const { title, description, types, averageRating } = req.body;
-  if (
-    !title ||
-    !description ||
-    !Array.isArray(types) ||
-    !types.length ||
-    !averageRating
-  ) {
-    return res.status(400).json({ message: "All fields are required" });
-  }
-  if (
-    typeof averageRating !== "number" ||
-    averageRating < 0 ||
-    averageRating > 5
-  ) {
-    return res
-      .status(400)
-      .json({ message: "Average rating must be a number between 0 and 5" });
+movieRouter.post('/', (req, res) => {
+  const { title, description, types } = req.body;
+  if (!title || !description || !Array.isArray(types) || types.length === 0) {
+    res.status(400).json({
+      message: 'Some fields are invalid',
+    });
+    return;
   }
   const newMovie = {
     id: nextMovieId++,
     title,
     description,
     types,
-    averageRating,
+    averageRating: 0,
     reviews: [],
   };
   movies.unshift(newMovie);
   res.status(201).json(newMovie);
 });
 
-app.put("/v1/movies/:id", (req, res) => {
+movieRouter.put('/:id', (req, res) => {
   const { id } = req.params;
-  const movie = movies.find((m) => m.id === +id);
+  const movie = movies.find((movie) => movie.id === +id);
   if (!movie) {
-    return res.status(404).json({ message: "Movie not found" });
+    res.status(404).json({ message: 'Movie not found' });
+    return;
   }
-  const { title, description, types, averageRating } = req.body;
-
-  if (
-    !title ||
-    !description ||
-    !Array.isArray(types) ||
-    !types.length ||
-    !averageRating
-  ) {
-    return res.status(400).json({ message: "All fields are required" });
+  const { title, description, types } = req.body;
+  if (title) {
+    movie.title = title;
   }
-  if (
-    typeof averageRating !== "number" ||
-    averageRating < 0 ||
-    averageRating > 5
-  ) {
-    return res
-      .status(400)
-      .json({ message: "Average rating must be a number between 0 and 5" });
+  if (description) {
+    movie.description = description;
   }
-  movie.title = title;
-  movie.description = description;
-  movie.types = types;
-  movie.averageRating = averageRating;
-
+  if (types) {
+    if (!Array.isArray(types) || types.length === 0) {
+      res.status(400).json({
+        message: 'types must be an array',
+      });
+      return;
+    }
+    movie.types = types;
+  }
   res.json(movie);
 });
 
-app.delete("/v1/movies/:id", (req, res) => {
-  const { id } = req.params;
-  const movieIndex = movies.findIndex((m) => m.id === +id);
+movieRouter.delete('/:id', (req, res) => {
+  const movieIndex = movies.findIndex((movie) => movie.id === +req.params.id);
   if (movieIndex === -1) {
-    return res.status(404).json({ message: "Movie not found" });
+    res.status(404).json({ message: 'Movie not found' });
+    return;
   }
   movies.splice(movieIndex, 1);
-  res.status(204).send();
+  res.sendStatus(204);
+});
+
+movieRouter.get('/:id/reviews', (req, res) => {
+  const { id } = req.params;
+  const movie = movies.find((movie) => movie.id === +id);
+  if (!movie) {
+    res.status(404).json({ message: 'Movie not found' });
+    return;
+  }
+  res.json(movie.reviews);
+});
+
+movieRouter.post('/:id/reviews', (req, res) => {
+  const { id } = req.params;
+  const movie = movies.find((movie) => movie.id === +id);
+  if (!movie) {
+    res.status(404).json({ message: 'Movie not found' });
+    return;
+  }
+  const { content, rating } = req.body;
+  if (!content || !rating || rating < 1 || rating > 5) {
+    res.status(400).json({
+      message: 'content is required and rating must be between 1 and 5',
+    });
+    return;
+  }
+  const newReview = {
+    id: nextReviewId++,
+    content,
+    rating,
+  };
+
+  movie.reviews.push(newReview);
+  movie.averageRating = +(
+    movie.reviews.reduce((sum, review) => sum + review.rating, 0) /
+    movie.reviews.length
+  ).toFixed(2);
+
+  res.status(201).json(newReview);
 });
 
 app.listen(3000, () => {
-  console.log("Server is running on port 3000");
+  console.log('Server listening on port 3000');
 });
 
 function cors(req, res, next) {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept"
-  );
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'content-type');
   next();
 }
