@@ -1,3 +1,4 @@
+// https://bitbucket.org/010001/jr/src/main/
 // fill content here
 require("dotenv").config();
 const express = require("express");
@@ -5,7 +6,6 @@ const mongoose = require("mongoose");
 const bodyParser = require("body-parser");
 const rateLimit = require("express-rate-limit");
 const articleRoutes = require("./routes/v1/api");
-const audit = require("./middleware/audit");
 const app = express();
 const PORT = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGODB_URI || "mongodb://localhost:27017/cms"; // Update with your MongoDB URI
@@ -20,22 +20,6 @@ const rateLimiter = rateLimit({
   standardHeaders: "draft-8", // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
 });
-
-// Audit middleware to log requests
-app.use(
-  audit({
-    logLevel: "info",
-    includeHeaders: true,
-    includeBody: false,
-    includeQuery: true,
-    includeParams: true,
-    includeUserAgent: true,
-    includeIP: true,
-    includeTimestamp: true,
-    excludePaths: ["/health", "/favicon.ico"],
-    maxBodyLength: 1000,
-  })
-);
 
 // Apply rate limiting middleware to all requests
 app.use(rateLimiter);
