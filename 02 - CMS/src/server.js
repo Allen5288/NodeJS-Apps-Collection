@@ -5,10 +5,22 @@ const express = require("express");
 const mongoose = require("mongoose");
 const bodyParser = require("body-parser");
 const rateLimit = require("express-rate-limit");
+const cors = require("cors");
 const articleRoutes = require("./routes/v1/api");
 const app = express();
 const PORT = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGODB_URI || "mongodb://localhost:27017/cms"; // Update with your MongoDB URI
+
+// CORS configuration
+const corsOptions = {
+  origin: ["http://localhost:3000", "http://127.0.0.1:3000"], // Add your frontend URLs
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true,
+};
+
+// Apply CORS middleware
+app.use(cors(corsOptions));
 
 // Rate limiting middleware
 const rateLimiter = rateLimit({
