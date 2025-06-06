@@ -1,0 +1,149 @@
+register
+login
+
+
+user
+
+Model -> user.model.js
+Controller -> user.controller.js
+Router -> user.router.js
+
+
+Controller -> auth.controller.js
+Router -> auth.router.js
+
+authencation/authorization
+
+
+nest.js
+
+hash
+add salt
+
+encrypt
+A -> x encrypt
+x -> A decrypt
+reversable 可逆转
+
+hash
+A -> y
+y !-> A
+不可逆转
+
+A’ -》 y password correct
+A’ -》 x password incorrect
+
+random string
+A + salt1 -> X
+A + salt2 -> X2
+A + salt3 -> X3
+
+salt 明文存到数据
+
+A' + salt1 -> salt1X1
+A' + salt2 -> salt2X2
+A' + salt3 -> salt3X3
+A' + salt4 -> salt4X4
+
+bcrypt 12
+
+pepper -> server environment variable
+
+
+token
+JSON web token
+JWT token
+
+
+
+
+session
+
+
+session + cookie
+CSRF
+
+jwt
+
+token -> issue -> valid until expired (or change secret)
+
+stateless -> server easy to scale
+
+seprate fe and be + cross device (cross origin)
+
+access token -> 7 days
+refresh token -> 365 days -> save to db
+
+
+User
+  username
+  password
+Post
+  title
+  content
+  hashtags
+  comments
+  createdAt
+  updateAt
+  user
+  likesCount
+  status
+Comment
+  content
+  user
+  post
+  -> x replies: [commentId]
+  parentId: commentId (exists -> reply)
+  depth: number (DFS depth first search)
+  createdAt
+  updatedAt
+  status
+Hashtag (Category)
+  name
+  -> posts
+  (recentPosts recent 100)
+  createdAt
+  updatedAt
+Like
+  user
+  post
+  targetType (enum -> post, comment)
+  target
+  createdAt
+  updatedAt
+
+favorite/like (extend)
+
+
+User / Post (likes) M N
+
+super crazy user, make 1M likes
+super popular post, has 1M likes
+
+
+document 16MB
+
+
+aws
+mongodb atlas
+serverless
+
+
+AWS Lamdba - serverless
+AWS API Gateway
+
+serverless
+npm i -D serverless
+
+serverless.yml
+IaC infrastructure as code
+
+AWS S3
+AWS CloudFormation
+AWS Logs
+
+CI/CD
+
+
+github actions
+github setup aws access
