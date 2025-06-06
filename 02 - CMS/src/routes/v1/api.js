@@ -2,6 +2,7 @@ const express = require('express');
 const router = new express.Router();
 const articleController = require('../../controllers/articleController');
 const authController = require('../../controllers/authController');
+const imageUploadController = require('../../controllers/imageUploadController');
 
 router.get('/articles', articleController.index);
 
@@ -18,6 +19,10 @@ router.delete('/articles/:id', articleController.destroy);
 router.post("/register", authController.register);
 router.post("/login", authController.login);
 router.get("/user/me", authController.showMe);
+
+
+// image upload route
+router.post('/upload', imageUploadController.uploadImage);
 
 
 module.exports = router;
