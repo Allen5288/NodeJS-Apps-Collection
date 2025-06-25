@@ -11,6 +11,7 @@ jspm_packages/
 .env.local
 .env.development.local
 .env.test.local
+.env.test
 .env.production.local
 
 # Debug logs
@@ -36,6 +37,22 @@ coverage/
 .rts2_cache_cjs/
 .rts2_cache_es/
 .rts2_cache_umd/
+
+# Serverless Framework
+.serverless/
+.serverless_nextjs/
+.serverless_plugins/
+serverless-state.json
+.webpack/
+.build/
+
+# AWS
+.aws-sam/
+samconfig.toml
+
+# Serverless environment files
+.env.serverless
+.env.serverless.local
 
 # Editor directories and files
 .idea/

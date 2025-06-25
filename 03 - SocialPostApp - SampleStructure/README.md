@@ -35,17 +35,20 @@ A Node.js social media application built with Express.js, featuring user authent
 ## Installation
 
 1. Clone the repository:
+
 ```bash
 git clone <repository-url>
 cd 03-SocialPostApp
 ```
 
 2. Install dependencies:
+
 ```bash
 npm install
 ```
 
 3. Create a `.env` file in the root directory:
+
 ```env
 NODE_ENV=development
 PORT=3000
@@ -57,12 +60,20 @@ JWT_EXPIRES_IN=7d
 ## Scripts
 
 ### Development
+
 ```bash
 # Start development server with hot reload
 npm run dev
 ```
 
 ### Testing
+
+add test.env
+
+```bash
+JWT_SECRET=secret
+```
+
 ```bash
 # Run all tests
 npm test
@@ -72,6 +83,7 @@ npm run test:coverage
 ```
 
 ### Serverless Deployment
+
 ```bash
 # Start serverless offline for local development
 npm run serverless:dev
@@ -89,11 +101,13 @@ npm run serverless:remove
 ## API Endpoints
 
 ### Authentication
+
 - `POST /api/auth/register` - Register a new user
 - `POST /api/auth/login` - Login user
 - `POST /api/auth/logout` - Logout user
 
 ### Posts
+
 - `GET /api/posts` - Get all posts
 - `GET /api/posts/:id` - Get specific post
 - `POST /api/posts` - Create new post (auth required)
@@ -101,6 +115,7 @@ npm run serverless:remove
 - `DELETE /api/posts/:id` - Delete post (auth required)
 
 ### Users
+
 - `GET /api/users/profile` - Get user profile (auth required)
 - `PUT /api/users/profile` - Update user profile (auth required)
 
@@ -150,7 +165,23 @@ The application includes comprehensive test suites:
 
 ### Serverless (AWS Lambda)
 
+Serverless Lambda + MongoDB Altas
+
+Create a .env.production
+
+```bash
+DB_CONNECTION_STRING='YOUR MONGODB ALTAS CONNECTION'
+JWT_SECRET=xxxx
+```
+
 The application is configured for serverless deployment using the Serverless Framework:
+
+create a bucket, the bucket name is corrsponding to the name in serverless.yml
+Remmeber: the name of the bucket is single globally, if used by others, you need to change to another one
+
+```bash
+aws s3api create-bucket --bucket readit-lambda-deployments --region ap-southeast-2 --create-bucket-configuration LocationConstraint=ap-southeast-2
+```
 
 1. Configure AWS credentials
 2. Update `serverless.yml` with your settings
