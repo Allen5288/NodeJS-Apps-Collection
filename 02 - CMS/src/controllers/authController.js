@@ -8,6 +8,10 @@ exports.login = async (req, res) => {
     const result = await authService.login(req);
     res.status(result.status).json(result.body);
 }
+exports.logout = async (req, res) => {
+    const result = await authService.logout(req);
+    res.status(result.status).json(result.body);
+}
 exports.showMe = async (req, res) => {
     const result = await authService.showMe(req);
     res.status(result.status).json(result.body);

@@ -23,6 +23,16 @@ exports.login = async (req) => {
   }
 };
 
+exports.logout = async (req) => {
+  try {
+    req.user.tokens = req.user.tokens.filter((token) => token !== req.token);
+    await req.user.save();
+    return { status: 200, body: { message: "Logged out successfully" } };
+  } catch (error) {
+    return { status: 400, body: { error: error.message } };
+  }
+};
+
 exports.showMe = async (req) => {
   try {
     const user = await User.findById(req.user._id).select("-password -__v");
