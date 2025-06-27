@@ -6,7 +6,7 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "dev:debug": "nodemon --inspect src/server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "jest"
   },
   "keywords": [],
   "author": "",
@@ -22,9 +22,11 @@
     "express-rate-limit": "^7.5.0",
     "express-requests-logger": "^4.0.3",
     "helmet": "^8.1.0",
+    "jest": "^30.0.3",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^7.0.0",
     "morgan": "^1.10.0",
+    "supertest": "^7.1.1",
     "uuid": "^11.1.0"
   },
   "devDependencies": {

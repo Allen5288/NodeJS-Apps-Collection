@@ -16,8 +16,8 @@ exports.login = async (req) => {
     if (!user) {
       return { status: 401, body: { error: "Invalid email or password" } };
     }
-    user.generateAuthToken();
-    return { status: 200, body: { user } };
+    const token = user.generateAuthToken();
+    return { status: 200, body: { user, token } };
   } catch (error) {
     return { status: 400, body: { error: error.message } };
   }

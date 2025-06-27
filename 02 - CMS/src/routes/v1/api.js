@@ -3,8 +3,9 @@ const router = new express.Router();
 const articleController = require('../../controllers/articleController');
 const authController = require('../../controllers/authController');
 const imageUploadController = require('../../controllers/imageUploadController');
+const authMiddleware = require('../../middleware/auth.middleware');
 
-router.get('/articles', articleController.index);
+router.get('/articles', authMiddleware.auth, articleController.index);
 
 // step 1
 router.post('/articles', articleController.store);
