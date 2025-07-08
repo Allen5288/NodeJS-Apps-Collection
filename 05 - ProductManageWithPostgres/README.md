@@ -81,6 +81,7 @@ CREATE TABLE IF NOT EXISTS products (
 ## Getting Started
 
 1. **Install dependencies:**
+
    ```bash
    npm install
    ```
@@ -88,10 +89,13 @@ CREATE TABLE IF NOT EXISTS products (
 2. **Set up your `.env` file** (see above).
 
 3. **Start the server:**
+
    ```bash
    npm start
    ```
+
    or for development with auto-reload:
+
    ```bash
    npm run dev
    ```
