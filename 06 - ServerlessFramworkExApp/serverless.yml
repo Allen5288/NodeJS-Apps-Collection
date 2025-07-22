@@ -1,0 +1,778 @@
+service: enterprise-serverless-app
+frameworkVersion: '3'
+
+plugins:
+  - serverless-esbuild
+  - serverless-iam-roles-per-function
+  - serverless-offline
+  - serverless-plugin-canary-deployments
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'us-east-1'}
+  memorySize: 256
+  timeout: 30
+  architecture: arm64
+  
+  environment:
+    STAGE: ${self:provider.stage}
+    REGION: ${self:provider.region}
+    SERVICE_NAME: ${self:service}
+    LOG_LEVEL: ${param:logLevel, 'info'}
+    CORRELATION_ID_HEADER: 'x-correlation-id'
+    
+    # DynamoDB Tables
+    USERS_TABLE: ${self:service}-${self:provider.stage}-users
+    PRODUCTS_TABLE: ${self:service}-${self:provider.stage}-products
+    ORDERS_TABLE: ${self:service}-${self:provider.stage}-orders
+    AUDIT_TABLE: ${self:service}-${self:provider.stage}-audit
+    
+    # SQS Queues
+    ORDER_PROCESSING_QUEUE: ${self:service}-${self:provider.stage}-order-processing
+    NOTIFICATION_QUEUE: ${self:service}-${self:provider.stage}-notifications
+    
+    # SNS Topics
+    ORDER_EVENTS_TOPIC: ${self:service}-${self:provider.stage}-order-events
+    USER_EVENTS_TOPIC: ${self:service}-${self:provider.stage}-user-events
+    
+    # Cognito
+    USER_POOL_ID: 
+      Ref: CognitoUserPool
+    USER_POOL_CLIENT_ID:
+      Ref: CognitoUserPoolClient
+    
+    # S3 Bucket
+    UPLOADS_BUCKET: ${self:service}-${self:provider.stage}-uploads
+    
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+          Resource: '*'
+        - Effect: Allow
+          Action:
+            - ssm:GetParameter
+            - ssm:GetParameters
+            - ssm:GetParametersByPath
+          Resource:
+            - arn:aws:ssm:${self:provider.region}:*:parameter/${self:service}/${self:provider.stage}/*
+        - Effect: Allow
+          Action:
+            - secretsmanager:GetSecretValue
+          Resource:
+            - arn:aws:secretsmanager:${self:provider.region}:*:secret:${self:service}/${self:provider.stage}/*
+
+custom:
+  esbuild:
+    bundle: true
+    minify: true
+    sourcemap: true
+    target: node18
+    exclude:
+      - aws-sdk
+    platform: node
+    concurrency: 10
+    
+  serverless-offline:
+    httpPort: 3000
+    lambdaPort: 3002
+    host: 0.0.0.0
+    
+  deploymentBucket:
+    name: ${self:service}-${self:provider.stage}-deployment-bucket
+    
+  aliases:
+    - name: LIVE
+      version: $LATEST
+      deploymentPreference:
+        type: Canary10Percent5Minutes
+        alarms:
+          - AliasErrorMetricGreaterThanZeroAlarm
+          - AliasAliasLatestVersionErrorMetricGreaterThanZeroAlarm
+
+functions:
+  # API Gateway Functions - Separated by entity
+  usersApi:
+    handler: src/handlers/users.handler
+    events:
+      - http:
+          path: /api/users
+          method: GET
+          cors: true
+      - http:
+          path: /api/users
+          method: POST
+          cors: true
+      - http:
+          path: /api/users/{id}
+          method: GET
+          cors: true
+      - http:
+          path: /api/users/{id}
+          method: PUT
+          cors: true
+      - http:
+          path: /api/users/{id}
+          method: DELETE
+          cors: true
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:Query
+          - dynamodb:Scan
+          - dynamodb:GetItem
+          - dynamodb:PutItem
+          - dynamodb:UpdateItem
+          - dynamodb:DeleteItem
+        Resource:
+          - arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.USERS_TABLE}
+          - arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.USERS_TABLE}/index/*
+          - arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.AUDIT_TABLE}
+
+  productsApi:
+    handler: src/handlers/products.handler
+    events:
+      - http:
+          path: /api/products
+          method: GET
+          cors: true
+      - http:
+          path: /api/products
+          method: POST
+          cors: true
+      - http:
+          path: /api/products/{id}
+          method: GET
+          cors: true
+      - http:
+          path: /api/products/{id}
+          method: PUT
+          cors: true
+      - http:
+          path: /api/products/{id}
+          method: DELETE
+          cors: true
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:Query
+          - dynamodb:Scan
+          - dynamodb:GetItem
+          - dynamodb:PutItem
+          - dynamodb:UpdateItem
+          - dynamodb:DeleteItem
+        Resource:
+          - arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.PRODUCTS_TABLE}
+          - arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.PRODUCTS_TABLE}/index/*
+          - arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.AUDIT_TABLE}
+
+  ordersApi:
+    handler: src/handlers/orders.handler
+    events:
+      - http:
+          path: /api/orders
+          method: GET
+          cors: true
+      - http:
+          path: /api/orders
+          method: POST
+          cors: true
+      - http:
+          path: /api/orders/{id}
+          method: GET
+          cors: true
+      - http:
+          path: /api/orders/{id}
+          method: PUT
+          cors: true
+      - http:
+          path: /api/orders/{id}
+          method: DELETE
+          cors: true
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:Query
+          - dynamodb:Scan
+          - dynamodb:GetItem
+          - dynamodb:PutItem
+          - dynamodb:UpdateItem
+          - dynamodb:DeleteItem
+        Resource:
+          - arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.ORDERS_TABLE}
+          - arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.ORDERS_TABLE}/index/*
+          - arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.PRODUCTS_TABLE}
+          - arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.AUDIT_TABLE}
+      - Effect: Allow
+        Action:
+          - sqs:SendMessage
+        Resource:
+          - arn:aws:sqs:${self:provider.region}:*:${self:provider.environment.ORDER_PROCESSING_QUEUE}
+          - arn:aws:sqs:${self:provider.region}:*:${self:provider.environment.NOTIFICATION_QUEUE}
+      - Effect: Allow
+        Action:
+          - cognito-idp:AdminGetUser
+          - cognito-idp:AdminUpdateUserAttributes
+        Resource:
+          - arn:aws:cognito-idp:${self:provider.region}:*:userpool/*
+      - Effect: Allow
+        Action:
+          - s3:GetObject
+          - s3:PutObject
+          - s3:DeleteObject
+        Resource:
+          - arn:aws:s3:::${self:provider.environment.UPLOADS_BUCKET}/*
+
+  # Authorizer Function
+  authorizer:
+    handler: src/handlers/authorizer.handler
+    environment:
+      JWT_SECRET: ${ssm:/${self:service}/${self:provider.stage}/jwt-secret}
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - cognito-idp:GetUser
+          - cognito-idp:AdminGetUser
+        Resource:
+          - arn:aws:cognito-idp:${self:provider.region}:*:userpool/*
+
+  # Queue Processing Functions
+  orderProcessor:
+    handler: src/handlers/orderProcessor.handler
+    events:
+      - sqs:
+          arn:
+            Fn::GetAtt:
+              - OrderProcessingQueue
+              - Arn
+          batchSize: 10
+          maximumBatchingWindowInSeconds: 5
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:Query
+          - dynamodb:GetItem
+          - dynamodb:UpdateItem
+        Resource:
+          - arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.ORDERS_TABLE}
+          - arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.PRODUCTS_TABLE}
+          - arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.AUDIT_TABLE}
+      - Effect: Allow
+        Action:
+          - sqs:SendMessage
+        Resource:
+          - arn:aws:sqs:${self:provider.region}:*:${self:provider.environment.NOTIFICATION_QUEUE}
+
+  notificationProcessor:
+    handler: src/handlers/notificationProcessor.handler
+    events:
+      - sqs:
+          arn:
+            Fn::GetAtt:
+              - NotificationQueue
+              - Arn
+          batchSize: 10
+          maximumBatchingWindowInSeconds: 5
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - ses:SendEmail
+          - ses:SendRawEmail
+        Resource: '*'
+      - Effect: Allow
+        Action:
+          - sns:Publish
+        Resource: '*'
+
+  eventProcessor:
+    handler: src/handlers/eventProcessor.handler
+    events:
+      - stream:
+          type: dynamodb
+          arn:
+            Fn::GetAtt:
+              - UsersTable
+              - StreamArn
+          batchSize: 10
+          startingPosition: LATEST
+          maximumBatchingWindowInSeconds: 5
+      - stream:
+          type: dynamodb
+          arn:
+            Fn::GetAtt:
+              - OrdersTable
+              - StreamArn
+          batchSize: 10
+          startingPosition: LATEST
+          maximumBatchingWindowInSeconds: 5
+      - stream:
+          type: dynamodb
+          arn:
+            Fn::GetAtt:
+              - ProductsTable
+              - StreamArn
+          batchSize: 10
+          startingPosition: LATEST
+          maximumBatchingWindowInSeconds: 5
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - sqs:SendMessage
+        Resource:
+          - arn:aws:sqs:${self:provider.region}:*:${self:provider.environment.NOTIFICATION_QUEUE}
+      - Effect: Allow
+        Action:
+          - dynamodb:PutItem
+        Resource:
+          - arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.AUDIT_TABLE}
+
+  # Scheduled Functions
+  cleanup:
+    handler: src/handlers/cleanup.handler
+    timeout: 300
+    events:
+      - schedule:
+          rate: cron(0 2 * * ? *)  # Daily at 2 AM UTC
+          enabled: true
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:Query
+          - dynamodb:Scan
+          - dynamodb:DeleteItem
+          - dynamodb:BatchWriteItem
+        Resource:
+          - arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.AUDIT_TABLE}
+      - Effect: Allow
+        Action:
+          - s3:ListBucket
+          - s3:DeleteObject
+        Resource:
+          - arn:aws:s3:::${self:provider.environment.UPLOADS_BUCKET}
+          - arn:aws:s3:::${self:provider.environment.UPLOADS_BUCKET}/*
+            Fn::GetAtt: [OrderProcessingQueue, Arn]
+          batchSize: 10
+          maximumBatchingWindowInSeconds: 5
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:Query
+          - dynamodb:PutItem
+          - dynamodb:UpdateItem
+        Resource:
+          - arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.ORDERS_TABLE}
+          - arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.AUDIT_TABLE}
+      - Effect: Allow
+        Action:
+          - sns:Publish
+        Resource:
+          - arn:aws:sns:${self:provider.region}:*:${self:provider.environment.ORDER_EVENTS_TOPIC}
+      - Effect: Allow
+        Action:
+          - sqs:SendMessage
+        Resource:
+          - arn:aws:sqs:${self:provider.region}:*:${self:provider.environment.NOTIFICATION_QUEUE}
+
+  notificationProcessor:
+    handler: src/handlers/notificationProcessor.handler
+    events:
+      - sqs:
+          arn:
+            Fn::GetAtt: [NotificationQueue, Arn]
+          batchSize: 10
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - ses:SendEmail
+        Resource: '*'
+      - Effect: Allow
+        Action:
+          - sns:Publish
+        Resource: '*'
+
+  # Event Processing Functions
+  eventProcessor:
+    handler: src/handlers/eventProcessor.handler
+    events:
+      - sns:
+          arn:
+            Ref: OrderEventsTopic
+          topicName: ${self:provider.environment.ORDER_EVENTS_TOPIC}
+      - sns:
+          arn:
+            Ref: UserEventsTopic
+          topicName: ${self:provider.environment.USER_EVENTS_TOPIC}
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:PutItem
+        Resource:
+          - arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.AUDIT_TABLE}
+
+  # Scheduled Functions
+  cleanup:
+    handler: src/handlers/cleanup.handler
+    events:
+      - schedule: rate(1 hour)
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:Scan
+          - dynamodb:DeleteItem
+        Resource:
+          - arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.AUDIT_TABLE}
+
+resources:
+  Resources:
+    # DynamoDB Tables
+    UsersTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.USERS_TABLE}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+          - AttributeName: email
+            AttributeType: S
+          - AttributeName: status
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: EmailIndex
+            KeySchema:
+              - AttributeName: email
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+          - IndexName: StatusIndex
+            KeySchema:
+              - AttributeName: status
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+        StreamSpecification:
+          StreamViewType: NEW_AND_OLD_IMAGES
+        PointInTimeRecoverySpecification:
+          PointInTimeRecoveryEnabled: true
+        Tags:
+          - Key: Service
+            Value: ${self:service}
+          - Key: Stage
+            Value: ${self:provider.stage}
+
+    ProductsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.PRODUCTS_TABLE}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+          - AttributeName: category
+            AttributeType: S
+          - AttributeName: status
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: CategoryIndex
+            KeySchema:
+              - AttributeName: category
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+          - IndexName: StatusIndex
+            KeySchema:
+              - AttributeName: status
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+        PointInTimeRecoverySpecification:
+          PointInTimeRecoveryEnabled: true
+        Tags:
+          - Key: Service
+            Value: ${self:service}
+          - Key: Stage
+            Value: ${self:provider.stage}
+
+    OrdersTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.ORDERS_TABLE}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+          - AttributeName: userId
+            AttributeType: S
+          - AttributeName: status
+            AttributeType: S
+          - AttributeName: createdAt
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: UserIndex
+            KeySchema:
+              - AttributeName: userId
+                KeyType: HASH
+              - AttributeName: createdAt
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+          - IndexName: StatusIndex
+            KeySchema:
+              - AttributeName: status
+                KeyType: HASH
+              - AttributeName: createdAt
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+        StreamSpecification:
+          StreamViewType: NEW_AND_OLD_IMAGES
+        PointInTimeRecoverySpecification:
+          PointInTimeRecoveryEnabled: true
+        Tags:
+          - Key: Service
+            Value: ${self:service}
+          - Key: Stage
+            Value: ${self:provider.stage}
+
+    AuditTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.AUDIT_TABLE}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+          - AttributeName: entityType
+            AttributeType: S
+          - AttributeName: timestamp
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: EntityTypeIndex
+            KeySchema:
+              - AttributeName: entityType
+                KeyType: HASH
+              - AttributeName: timestamp
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+        TimeToLiveSpecification:
+          AttributeName: ttl
+          Enabled: true
+        Tags:
+          - Key: Service
+            Value: ${self:service}
+          - Key: Stage
+            Value: ${self:provider.stage}
+
+    # SQS Queues
+    OrderProcessingQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: ${self:provider.environment.ORDER_PROCESSING_QUEUE}
+        VisibilityTimeoutSeconds: 180
+        MessageRetentionPeriod: 1209600
+        DelaySeconds: 0
+        RedrivePolicy:
+          deadLetterTargetArn:
+            Fn::GetAtt: [OrderProcessingDLQ, Arn]
+          maxReceiveCount: 3
+        Tags:
+          - Key: Service
+            Value: ${self:service}
+          - Key: Stage
+            Value: ${self:provider.stage}
+
+    OrderProcessingDLQ:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: ${self:provider.environment.ORDER_PROCESSING_QUEUE}-dlq
+        MessageRetentionPeriod: 1209600
+
+    NotificationQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: ${self:provider.environment.NOTIFICATION_QUEUE}
+        VisibilityTimeoutSeconds: 60
+        MessageRetentionPeriod: 1209600
+        RedrivePolicy:
+          deadLetterTargetArn:
+            Fn::GetAtt: [NotificationDLQ, Arn]
+          maxReceiveCount: 3
+        Tags:
+          - Key: Service
+            Value: ${self:service}
+          - Key: Stage
+            Value: ${self:provider.stage}
+
+    NotificationDLQ:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: ${self:provider.environment.NOTIFICATION_QUEUE}-dlq
+        MessageRetentionPeriod: 1209600
+
+    # SNS Topics
+    OrderEventsTopic:
+      Type: AWS::SNS::Topic
+      Properties:
+        TopicName: ${self:provider.environment.ORDER_EVENTS_TOPIC}
+        DisplayName: Order Events Topic
+        Tags:
+          - Key: Service
+            Value: ${self:service}
+          - Key: Stage
+            Value: ${self:provider.stage}
+
+    UserEventsTopic:
+      Type: AWS::SNS::Topic
+      Properties:
+        TopicName: ${self:provider.environment.USER_EVENTS_TOPIC}
+        DisplayName: User Events Topic
+        Tags:
+          - Key: Service
+            Value: ${self:service}
+          - Key: Stage
+            Value: ${self:provider.stage}
+
+    # Cognito User Pool
+    CognitoUserPool:
+      Type: AWS::Cognito::UserPool
+      Properties:
+        UserPoolName: ${self:service}-${self:provider.stage}-user-pool
+        AliasAttributes:
+          - email
+        AutoVerifiedAttributes:
+          - email
+        Policies:
+          PasswordPolicy:
+            MinimumLength: 8
+            RequireUppercase: true
+            RequireLowercase: true
+            RequireNumbers: true
+            RequireSymbols: false
+        Schema:
+          - Name: email
+            AttributeDataType: String
+            Required: true
+            Mutable: true
+          - Name: name
+            AttributeDataType: String
+            Required: true
+            Mutable: true
+        UserPoolTags:
+          Service: ${self:service}
+          Stage: ${self:provider.stage}
+
+    CognitoUserPoolClient:
+      Type: AWS::Cognito::UserPoolClient
+      Properties:
+        ClientName: ${self:service}-${self:provider.stage}-client
+        UserPoolId:
+          Ref: CognitoUserPool
+        GenerateSecret: false
+        ExplicitAuthFlows:
+          - ALLOW_ADMIN_USER_PASSWORD_AUTH
+          - ALLOW_USER_PASSWORD_AUTH
+          - ALLOW_REFRESH_TOKEN_AUTH
+        TokenValidityUnits:
+          AccessToken: hours
+          IdToken: hours
+          RefreshToken: days
+        AccessTokenValidity: 1
+        IdTokenValidity: 1
+        RefreshTokenValidity: 30
+
+    # S3 Bucket
+    UploadsBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:provider.environment.UPLOADS_BUCKET}
+        PublicAccessBlockConfiguration:
+          BlockPublicAcls: true
+          BlockPublicPolicy: true
+          IgnorePublicAcls: true
+          RestrictPublicBuckets: true
+        BucketEncryption:
+          ServerSideEncryptionConfiguration:
+            - ServerSideEncryptionByDefault:
+                SSEAlgorithm: AES256
+        VersioningConfiguration:
+          Status: Enabled
+        Tags:
+          - Key: Service
+            Value: ${self:service}
+          - Key: Stage
+            Value: ${self:provider.stage}
+
+    # CloudWatch Alarms for Canary Deployments
+    AliasErrorMetricGreaterThanZeroAlarm:
+      Type: AWS::CloudWatch::Alarm
+      Properties:
+        AlarmDescription: Lambda function errors
+        ComparisonOperator: GreaterThanThreshold
+        EvaluationPeriods: 2
+        MetricName: Errors
+        Namespace: AWS/Lambda
+        Period: 60
+        Statistic: Sum
+        Threshold: 0
+        Dimensions:
+          - Name: FunctionName
+            Value:
+              Ref: ApiLambdaFunction
+          - Name: Resource
+            Value:
+              Ref: ApiLambdaFunction
+
+    AliasAliasLatestVersionErrorMetricGreaterThanZeroAlarm:
+      Type: AWS::CloudWatch::Alarm
+      Properties:
+        AlarmDescription: Lambda function errors latest version
+        ComparisonOperator: GreaterThanThreshold
+        EvaluationPeriods: 2
+        MetricName: Errors
+        Namespace: AWS/Lambda
+        Period: 60
+        Statistic: Sum
+        Threshold: 0
+        Dimensions:
+          - Name: FunctionName
+            Value:
+              Ref: ApiLambdaFunction
+          - Name: Resource
+            Value:
+              Ref: ApiLambdaFunction
+
+  Outputs:
+    ApiGatewayRestApiId:
+      Value:
+        Ref: RestApiApigEvent
+    ApiGatewayRestApiRootResourceId:
+      Value:
+        Fn::GetAtt: [RestApiApigEvent, RootResourceId]
+    UserPoolId:
+      Value:
+        Ref: CognitoUserPool
+    UserPoolClientId:
+      Value:
+        Ref: CognitoUserPoolClient
+    UploadsBucketName:
+      Value:
+        Ref: UploadsBucket
