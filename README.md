@@ -19,6 +19,7 @@ A full-featured content management system with article management, user authenti
 ### 3. [Social Post App - Sample Structure](./03%20-%20SocialPostApp%20-%20SampleStructure/README.md)
 
 A social media application featuring user authentication, post management, comments, likes, hashtags, and serverless deployment support.
+This is also a typical structure for MERN
 
 **Tech Stack:** Express.js, MongoDB, JWT, Serverless Framework, Jest Testing, AWS Lambda
 
