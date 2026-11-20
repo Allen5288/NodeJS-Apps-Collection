@@ -146,4 +146,14 @@ especially if the cause of the abnormal behavior is inside of the missing functi
 
 <br/><br/><br/>
 
+## ![✔] 2.14 Never leak internals in error responses
+
+**TL;DR:** An error response is a public contract, not a debug dump. Return a stable, minimal shape — an error code, a short human-readable message, and a correlation id — and never include stack traces, SQL, file paths, or library internals. Log the full error server-side against the same correlation id, so support can find the details without the client ever seeing them
+
+**Otherwise:** A stack trace in a 500 response hands an attacker your file layout, dependency versions, and query shapes, and it trains clients to parse messages that will change. Worse, when the message contains a user's own data (an email, a token fragment), the error itself becomes a leak
+
+🔗 [**Read More: returning safe error responses**](./sections/safeerrorresponses.md)
+
+<br/><br/>
+
 <p align="right"><a href="#table-of-contents">⬆ Return to top</a></p>
