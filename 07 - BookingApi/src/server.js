@@ -1,8 +1,9 @@
 // BookingApi — appointment booking API for a small business (salon / clinic).
 // Stdlib only (node:http), no dependencies. Run: node src/server.js
-// Data is in-memory for day 1; persistence lands in commit 2.
+// Bookings persist in data/bookings.json (see store.js) — they survive a restart.
 import http from "node:http";
 import { randomUUID } from "node:crypto";
+import { loadBookings, saveBookings } from "./store.js";
 
 const PORT = process.env.PORT || 3000;
 
@@ -14,7 +15,7 @@ const services = [
 
 // Slots are per service per date; a slot is a "09:00" style start time.
 const slotTimes = ["09:00", "10:00", "11:00", "13:00", "14:00", "15:00", "16:00"];
-const bookings = []; // { id, serviceId, date, time, customerName, phone, status, createdAt }
+const bookings = loadBookings(); // { id, serviceId, date, time, customerName, phone, status, createdAt }
 
 function send(res, status, body) {
   const payload = JSON.stringify(body);
@@ -101,6 +102,7 @@ const server = http.createServer(async (req, res) => {
         createdAt: new Date().toISOString(),
       };
       bookings.push(booking);
+      saveBookings(bookings);
       return send(res, 201, { booking });
     }
     if (req.method === "GET" && url.pathname === "/bookings") {
@@ -115,6 +117,7 @@ const server = http.createServer(async (req, res) => {
         return error(res, 404, "NOT_FOUND", "booking not found", correlationId);
       }
       booking.status = "cancelled";
+      saveBookings(bookings);
       return send(res, 200, { booking });
     }
     return error(res, 404, "NOT_FOUND", "route not found", correlationId);
