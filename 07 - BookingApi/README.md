@@ -44,7 +44,7 @@ the day's bookings and never double-books a slot.
 }
 ```
 
-## Run it (day 2 — JSON file store)
+## Run it (day 3 — validation + error handling)
 
 ```bash
 cd "07 - BookingApi"
@@ -82,11 +82,74 @@ Node 18+, no dependencies — `node:http` only, no install step.
    on double-book), list and cancel. In-memory store.
 2. **Persistence (this commit):** bookings survive a restart —
    JSON file store with atomic writes; no booking lost on deploy.
-3. **Validation + error handling:** Zod-style schemas at the
-   boundary, the one error shape everywhere, correlation ids in
-   logs — the 2.x practices applied to this service.
-4. **Auth + tests:** JWT auth for the business side (bookings list,
+3. **Validation + error handling (done 2026-11-27):** Zod-style schemas at the
+   boundary (see `src/validate.js`), the one error shape everywhere
+   with a `details` array, correlation ids in logs — the 2.x practices
+      applied to this service.
+5. **Auth + tests:** JWT auth for the business side (bookings list,
    cancel), public read for slots; `node --test` coverage of the
    double-booking guard and validation.
-5. **Deploy notes + ship checklist:** run as a service, env config,
+6. **Deploy notes + ship checklist:** run as a service, env config,
    backup of the booking file; case finished.
+
+
+
+
+## Validation + error handling (day 3)
+
+Days 1–2 validated inline in `server.js` — a few `if`s in the
+booking handler. That works for one route and rots for five: the
+same date check copied into every handler, each copy slightly
+different. Day 3 moves validation to the boundary, into
+`src/validate.js`, so the handler only ever sees a clean value or
+a list of field errors.
+
+### The rules
+
+| Rule | Why |
+|---|---|
+| Unknown fields rejected, not dropped | A client sending `emai` instead of `email` gets a 400, not a booking with no contact (same rule as the AWS Register API, 2026-11-23) |
+| Date must be a real calendar date, `YYYY-MM-DD` | `2026-02-30` is not a date — the `Date` round-trip check catches the rollover |
+| Date must not be in the past | A booking for yesterday is a data error the business finds out about at the door |
+| Time must be a listed slot | The slot list is the business's opening hours; anything else is not bookable |
+| Name 2–100 chars, trimmed | A callback needs a name; a 5,000-char name is a cheap denial of service on the JSON file store |
+| Phone optional, but if present must be Australian | Mobile `04XX` or landline `02/03/07/08`, with or without `+61`. The salon calls the customer back — a wrong number is a no-show nobody can prevent. Stored normalised, so `0400 000 000` and `0400000000` are the same number |
+
+### The error shape, extended
+
+Validation failures now carry a `details` array — one entry per
+bad field — so the client can fix the request instead of guessing:
+
+```json
+{
+  "code": "VALIDATION_ERROR",
+  "message": "booking request failed validation",
+  "correlationId": "9f2c4a1e-…",
+  "details": [
+    { "field": "date", "issue": "date must not be in the past" },
+    { "field": "phone", "issue": "phone must be an Australian number, e.g. 0400 000 000" }
+  ]
+}
+```
+
+`details` is present only for validation errors. Every other error
+keeps the same three fields as before — the shape grows by addition,
+never by changing what a client already handles. And the messages
+name the field and the rule, never a stack trace or a file path:
+internals stay in the server log, next to the correlation id.
+
+### Try it
+
+```bash
+curl -X POST localhost:3000/bookings -H "Content-Type: application/json" \
+  -d '{"serviceId":"haircut","date":"2026-11-26","time":"10:00","customerName":"Alex Chen","phone":"0400 000 000"}'
+# -> 400 VALIDATION_ERROR, details: date must not be in the past (26 Nov is gone)
+
+curl -X POST localhost:3000/bookings -H "Content-Type: application/json" \
+  -d '{"serviceId":"haircut","date":"2026-12-01","time":"10:00","customerName":"Alex Chen","phone":"123"}'
+# -> 400 VALIDATION_ERROR, details: phone must be an Australian number
+
+curl -X POST localhost:3000/bookings -H "Content-Type: application/json" \
+  -d '{"serviceId":"haircut","date":"2026-12-01","time":"10:00","customerName":"Alex Chen","phone":"0400 000 000","note":"hi"}'
+# -> 400 VALIDATION_ERROR, details: note is an unknown field
+```
