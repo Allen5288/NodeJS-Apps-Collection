@@ -1,9 +1,13 @@
 // BookingApi — appointment booking API for a small business (salon / clinic).
 // Stdlib only (node:http), no dependencies. Run: node src/server.js
 // Bookings persist in data/bookings.json (see store.js) — they survive a restart.
+// Validation lives in validate.js: every booking request passes through it
+// before it touches the store, and every error uses the one public shape
+// (code, message, correlationId, details) from the 2.14 practice.
 import http from "node:http";
 import { randomUUID } from "node:crypto";
 import { loadBookings, saveBookings } from "./store.js";
+import { validateBooking } from "./validate.js";
 
 const PORT = process.env.PORT || 3000;
 
@@ -23,9 +27,13 @@ function send(res, status, body) {
   res.end(payload);
 }
 
-function error(res, status, code, message, correlationId) {
+function error(res, status, code, message, correlationId, details) {
   // One public error shape (see 2.14 safe error responses): no internals leak.
-  send(res, status, { code, message, correlationId });
+  // `details` is present only for validation errors — one entry per bad field,
+  // so the client can fix the request instead of guessing what was wrong.
+  const body = { code, message, correlationId };
+  if (details) body.details = details;
+  send(res, status, body);
 }
 
 function readBody(req) {
@@ -77,16 +85,20 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === "POST" && url.pathname === "/bookings") {
       const body = await readBody(req);
-      const { serviceId, date, time, customerName, phone } = body;
-      if (!services.some((s) => s.id === serviceId)) {
-        return error(res, 400, "VALIDATION_ERROR", "unknown serviceId", correlationId);
+      // All booking validation lives in validate.js — the handler
+      // only sees a clean value or a list of field errors.
+      const checked = validateBooking(body, services, slotTimes);
+      if (!checked.ok) {
+        return error(
+          res,
+          400,
+          "VALIDATION_ERROR",
+          "booking request failed validation",
+          correlationId,
+          checked.errors,
+        );
       }
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(date ?? "") || !slotTimes.includes(time)) {
-        return error(res, 400, "VALIDATION_ERROR", "date must be YYYY-MM-DD and time must be a listed slot", correlationId);
-      }
-      if (typeof customerName !== "string" || customerName.trim().length < 2) {
-        return error(res, 400, "VALIDATION_ERROR", "customerName is required", correlationId);
-      }
+      const { serviceId, date, time, customerName, phone } = checked.value;
       if (!freeSlots(serviceId, date).includes(time)) {
         // Double-booking guard: the slot is already taken.
         return error(res, 409, "SLOT_TAKEN", "that slot is already booked", correlationId);
@@ -96,8 +108,8 @@ const server = http.createServer(async (req, res) => {
         serviceId,
         date,
         time,
-        customerName: customerName.trim(),
-        phone: phone ?? null,
+        customerName,
+        phone,
         status: "booked",
         createdAt: new Date().toISOString(),
       };
