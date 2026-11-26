@@ -86,10 +86,10 @@ Node 18+, no dependencies — `node:http` only, no install step.
    boundary (see `src/validate.js`), the one error shape everywhere
    with a `details` array, correlation ids in logs — the 2.x practices
       applied to this service.
-5. **Auth + tests:** JWT auth for the business side (bookings list,
+4. **Auth + tests:** JWT auth for the business side (bookings list,
    cancel), public read for slots; `node --test` coverage of the
    double-booking guard and validation.
-6. **Deploy notes + ship checklist:** run as a service, env config,
+5. **Deploy notes + ship checklist:** run as a service, env config,
    backup of the booking file; case finished.
 
 
