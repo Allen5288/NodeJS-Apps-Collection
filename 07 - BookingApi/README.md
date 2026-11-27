@@ -29,8 +29,8 @@ the day's bookings and never double-books a slot.
 | GET | /services | List services (duration, price) |
 | GET | /slots?service=haircut&date=2026-11-26 | Free slots for that service and day |
 | POST | /bookings | Book a slot (201, or 409 SLOT_TAKEN) |
-| GET | /bookings?date=2026-11-26 | List bookings, optionally for a day |
-| DELETE | /bookings/:id | Cancel a booking, frees the slot |
+| GET | /bookings?date=2026-11-26 | List bookings, optionally for a day 🔑|
+| DELETE | /bookings/:id | Cancel a booking, frees the slot 🔑|
 
 `POST /bookings` body:
 
@@ -86,9 +86,9 @@ Node 18+, no dependencies — `node:http` only, no install step.
    boundary (see `src/validate.js`), the one error shape everywhere
    with a `details` array, correlation ids in logs — the 2.x practices
       applied to this service.
-4. **Auth + tests:** JWT auth for the business side (bookings list,
-   cancel), public read for slots; `node --test` coverage of the
-   double-booking guard and validation.
+4. **Auth + tests (done 2026-11-28):** API-key auth for the business side (bookings list,
+   cancel) instead of the JWT in the plan — one salon, one key, no token machinery; public read for slots and public booking unchanged. `node --test` coverage of auth and the
+   double-booking guard and validation (12 tests).
 5. **Deploy notes + ship checklist:** run as a service, env config,
    backup of the booking file; case finished.
 
@@ -153,3 +153,94 @@ curl -X POST localhost:3000/bookings -H "Content-Type: application/json" \
   -d '{"serviceId":"haircut","date":"2026-12-01","time":"10:00","customerName":"Alex Chen","phone":"0400 000 000","note":"hi"}'
 # -> 400 VALIDATION_ERROR, details: note is an unknown field
 ```
+
+## Auth + tests (day 4)
+
+Days 1–3 built the booking flow, persistence, and validation — all
+of it open to anyone who could reach the server. Today the business
+side gets a lock, and the whole flow gets tests that prove it still
+works.
+
+### Which routes need a key
+
+| Route | Key? | Why |
+|---|---|---|
+| `GET /health`, `GET /services`, `GET /slots` | No — public | A customer cannot be expected to hold a key to see free slots. |
+| `POST /bookings` | No — public | Booking is the customer's job; validation (day 3) is the guard. |
+| `GET /bookings`, `DELETE /bookings/:id` | Yes — `x-api-key` | The salon's day sheet and the cancel button belong to the business, not to anyone on the internet. |
+
+The key is one shared key per clinic, from the `BOOKING_API_KEY`
+env var — never from code or the booking file. Send it as the
+`x-api-key` header:
+
+```bash
+BOOKING_API_KEY=salon-secret-key-2026 node src/server.js
+curl localhost:3000/bookings -H "x-api-key: salon-secret-key-2026"
+```
+
+### Why an API key, not JWT
+
+The build plan said JWT. One salon with one key does not need token
+issuance, expiry, refresh, or a login endpoint — a shared key the
+owner rotates by changing one env var is the whole mechanism. If
+the salon grows to several staff with different permissions, that
+is the point to revisit JWT. The key is compared in constant time
+(SHA-256 both sides, then `timingSafeEqual`), so a wrong key takes
+the same time whatever it is — no timing oracle for guessing the
+key a byte at a time. A failed check answers `401 UNAUTHORIZED`
+in the same public error shape as everything else (code, message,
+correlationId), and says nothing about whether the key was missing,
+wrong, or malformed.
+
+No key configured means local-dev mode: the server logs a loud
+warning at startup (`API key auth: OFF …`) and lets requests
+through, so `node src/server.js` still works on a laptop with no
+setup. Set `BOOKING_API_KEY` before exposing the server anywhere
+else.
+
+### Tests — `npm test`
+
+`node --test` (Node's built-in runner, no dependencies), in `test/`:
+
+- `test/auth.test.js` — missing key 401, wrong key 401, right key
+  200, delete without a key 401 with the booking still booked,
+  delete with the key cancels, unknown id 404, public routes
+  still work with no key.
+- `test/booking-flow.test.js` — create 201 and the slot disappears
+  from the free list, double-book 409 `SLOT_TAKEN`, bad phone and
+  past date and unknown field all 400 with a `details` entry,
+  cancel frees the slot and it can be booked again, the day list
+  shows only that date's bookings.
+
+To make the server testable, `server.js` now exports
+`createServer()` and only listens when run directly — importing
+the module builds the server without starting it, so tests listen
+on an ephemeral port. Tests set `BOOKING_API_KEY` before importing
+and use future dates (2027-01-15/16, 2027-02-10): the past-date
+check uses the server's local date, so a past date would fail
+validation before auth is ever reached. Each test file deletes
+`data/bookings.json` before and after itself, so a leftover file
+from an interrupted run cannot change the answers — and the file
+is test data, never committed.
+
+### Try it
+
+```bash
+BOOKING_API_KEY=salon-secret-key-2026 node src/server.js
+curl localhost:3000/bookings
+# -> 401 UNAUTHORIZED (no key)
+curl localhost:3000/bookings -H "x-api-key: salon-secret-key-2026"
+# -> 200, the day sheet
+curl -X POST localhost:3000/bookings -H "Content-Type: application/json" \
+  -d '{"serviceId":"haircut","date":"2027-01-15","time":"10:00","customerName":"Alex Chen","phone":"0400 000 000"}'
+# -> 201, no key needed — booking stays public
+npm test   # 12 tests, 0 failures
+```
+
+### Build plan update
+
+4. **Auth + tests (done 2026-11-28):** API-key auth for the
+   business side (bookings list, cancel) instead of the JWT in the
+   plan — one salon, one key, no token machinery; public read for
+   slots and public booking unchanged. `node --test` coverage of
+   auth and the double-booking guard and validation (12 tests).
